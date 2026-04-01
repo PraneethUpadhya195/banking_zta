@@ -82,12 +82,12 @@ all_signals := [
     {
         "name": "impossible_travel",
         "triggered": impossible_travel,
-        "score": 100
+        "score": data.score_weights.impossible_travel
     },
     {
         "name": "mfa_passed",
         "triggered": mfa_passed,
-        "score": -50
+        "score": data.score_weights.mfa_passed
     }
 ]
 

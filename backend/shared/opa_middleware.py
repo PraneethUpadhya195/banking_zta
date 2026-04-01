@@ -171,7 +171,12 @@ async def check_opa_policy(
     roles = token_payload.get("realm_access", {}).get("roles", [])
     
     # Simple role extraction
-    primary_role = "customer" if "customer" in roles else "user"
+    role_priority = ["admin", "manager", "teller", "customer"]
+    primary_role = "customer"
+    for r in role_priority:
+        if r in roles:
+            primary_role = r
+            break
 
     # 2. Extract Context from the physical HTTP Request
     client_ip = request.client.host

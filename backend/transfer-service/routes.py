@@ -3,20 +3,18 @@ import os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'shared'))
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from datetime import datetime
 
 from database import get_db
-from models import Account, Transaction, User, AuditLog
-from auth import get_current_user, CurrentUser
+from models import Account, Transaction, User
+from keycloak_auth import verify_token
+from opa_middleware import enforce_policy
 
 router = APIRouter(prefix="/transfer", tags=["Transfer"])
-
-STEP_UP_THRESHOLD = 100000.0
-
 
 async def get_account_by_username(username: str, db: AsyncSession):
     result = await db.execute(
@@ -27,49 +25,53 @@ async def get_account_by_username(username: str, db: AsyncSession):
     )
     return result.scalar_one_or_none()
 
-
-from opa_middleware import enforce_policy
-from fastapi import Request
-
 @router.post("/")
 async def make_transfer(
-    to_username: str,
-    amount: float,
     request: Request,
-    current_user: CurrentUser = Depends(get_current_user),
+    to_username: str = Body(..., embed=True),
+    amount: float = Body(..., embed=True),
+    token_payload: dict = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
-    if current_user.role == "admin":
-        raise HTTPException(
-            status_code=403,
-            detail="Admins cannot initiate transfers"
-        )
+    # 1. Extract Identity & Roles from Keycloak Token
+    username = token_payload.get("preferred_username")
+    roles = token_payload.get("realm_access", {}).get("roles", [])
+    
+    # Safely extract the highest priority role
+    role_priority = ["admin", "manager", "teller", "customer"]
+    primary_role = "customer"
+    for r in role_priority:
+        if r in roles:
+            primary_role = r
+            break
 
+    if primary_role == "admin":
+        raise HTTPException(status_code=403, detail="Admins cannot initiate transfers")
     if amount <= 0:
-        raise HTTPException(
-            status_code=400,
-            detail="Amount must be greater than zero"
-        )
+        raise HTTPException(status_code=400, detail="Amount must be greater than zero")
+    if to_username == username:
+        raise HTTPException(status_code=400, detail="Cannot transfer to your own account")
 
-    if to_username == current_user.username:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot transfer to your own account"
-        )
+    # 2. Extract Context (IP, Device, MFA)
+    client_ip = request.headers.get("X-Forwarded-For", request.client.host)
+    device_id = request.cookies.get("device_id")
+    has_mfa = request.cookies.get("mfa_cleared") == "true"
 
-    # OPA check — passes amount for scoring
-    await enforce_policy(
-        username=current_user.username,
-        role=current_user.role,
-        path="/transfer/",
-        method="POST",
-        ip=current_user.ip,
+    # 3. OPA Zero Trust Check
+    auth_context = await enforce_policy(
+        username=username,
+        role=primary_role,
+        path=request.url.path,
+        method=request.method,
+        ip=client_ip,
         db=db,
-        device_id=current_user.device_id,
-        amount=amount
+        device_id=device_id,
+        amount=amount,
+        mfa_verified=has_mfa
     )
 
-    sender_account = await get_account_by_username(current_user.username, db)
+    # 4. Database Business Logic
+    sender_account = await get_account_by_username(username, db)
     if not sender_account:
         raise HTTPException(status_code=404, detail="Sender account not found")
 
@@ -78,11 +80,9 @@ async def make_transfer(
         raise HTTPException(status_code=404, detail="Receiver account not found")
 
     if sender_account.balance < amount:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Insufficient balance. Available: ₹{sender_account.balance:,.2f}"
-        )
+        raise HTTPException(status_code=400, detail=f"Insufficient balance. Available: ₹{sender_account.balance:,.2f}")
 
+    # Process Transfer
     sender_account.balance -= amount
     receiver_account.balance += amount
 
@@ -100,25 +100,28 @@ async def make_transfer(
 
     return {
         "message": "Transfer successful",
-        "from": current_user.username,
+        "from": username,
         "to": to_username,
         "amount": amount,
         "remaining_balance": sender_account.balance,
         "transaction_id": str(transaction.id),
+        "security_score": auth_context["score"],
         "timestamp": transaction.timestamp.isoformat()
     }
 
 
 @router.get("/history")
 async def get_transfer_history(
-    current_user: CurrentUser = Depends(get_current_user),
+    token_payload: dict = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
-    # get current user's account first
-    my_account = await get_account_by_username(current_user.username, db)
+    username = token_payload.get("preferred_username")
+    roles = token_payload.get("realm_access", {}).get("roles", [])
+    
+    my_account = await get_account_by_username(username, db)
 
-    # managers and admins see all transactions
-    if current_user.role in ("manager", "admin"):
+    # Managers and admins see all transactions
+    if "manager" in roles or "admin" in roles:
         result = await db.execute(
             select(Transaction)
             .options(
@@ -129,7 +132,7 @@ async def get_transfer_history(
         )
         transactions = result.scalars().all()
 
-    # customers and tellers see only their own
+    # Customers and tellers see only their own
     else:
         if not my_account:
             return {"transactions": []}
