@@ -8,9 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from datetime import datetime
-
+from models import Account, Transaction, User, AuditLog
 from database import get_db
-from models import Account, Transaction, User
 from keycloak_auth import verify_token
 from opa_middleware import enforce_policy
 
@@ -162,5 +161,36 @@ async def get_transfer_history(
                 "timestamp": t.timestamp.isoformat()
             }
             for t in transactions
+        ]
+    }
+
+@router.get("/audit")
+async def get_audit_logs(
+    token_payload: dict = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    # 1. Enforce RBAC
+    roles = token_payload.get("realm_access", {}).get("roles", [])
+    if "admin" not in roles:
+        raise HTTPException(status_code=403, detail="Only admins can view security logs")
+
+    # 2. Fetch the latest 50 security events
+    result = await db.execute(
+        select(AuditLog).order_by(AuditLog.timestamp.desc()).limit(50)
+    )
+    logs = result.scalars().all()
+
+    return {
+        "logs": [
+            {
+                "id": str(log.id),
+                "timestamp": log.timestamp.isoformat(),
+                "username": log.username,
+                "ip": log.ip,
+                "risk_score": log.risk_score,
+                "decision": log.decision,
+                "reasons": log.reasons
+            }
+            for log in logs
         ]
     }
