@@ -14,7 +14,7 @@ from uuid import UUID
 from database import get_db
 from models import Transaction, Account, User
 from auth import get_current_user, CurrentUser
-
+from keycloak_auth import verify_token
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
 
 
@@ -63,7 +63,7 @@ async def get_transactions(
     status: Optional[str] = Query(None, description="Filter by status: success, failed, flagged"),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
     query = select(Transaction).options(
@@ -112,7 +112,7 @@ async def get_transactions(
 @router.get("/{transaction_id}")
 async def get_transaction_by_id(
     transaction_id: UUID,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(
@@ -142,7 +142,7 @@ async def get_transaction_by_id(
 
 @router.get("/flagged/all")
 async def get_flagged_transactions(
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
     if current_user.role not in ("manager", "admin"):

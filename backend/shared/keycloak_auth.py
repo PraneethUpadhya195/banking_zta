@@ -1,40 +1,57 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Request, HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
-import httpx
+import requests
 
-# This tells FastAPI to look for the "Authorization: Bearer <token>" header
 security = HTTPBearer()
 
-# Your local Keycloak realm URL for public keys
-KEYCLOAK_CERTS_URL = "http://localhost:8080/realms/banking/protocol/openid-connect/certs"
+# Replace with your actual Keycloak realm details
+KEYCLOAK_URL = "http://localhost:8080/realms/banking/protocol/openid-connect/certs"
+ALGORITHM = "RS256"
+AUDIENCE = "account" # Or whatever your client audience is configured to
 
-def get_public_keys():
-    try:
-        response = httpx.get(KEYCLOAK_CERTS_URL)
-        response.raise_for_status()
-        return response.json()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Cannot reach Keycloak: {str(e)}")
+def get_public_key(token: str):
+    # In production, cache this request!
+    jwks = requests.get(KEYCLOAK_URL).json()
+    unverified_header = jwt.get_unverified_header(token)
+    rsa_key = {}
+    for key in jwks["keys"]:
+        if key["kid"] == unverified_header["kid"]:
+            rsa_key = {
+                "kty": key["kty"],
+                "kid": key["kid"],
+                "use": key["use"],
+                "n": key["n"],
+                "e": key["e"]
+            }
+            break
+    return rsa_key
 
-async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def verify_token(credentials: HTTPAuthorizationCredentials = Security(security)):
     token = credentials.credentials
     try:
-        jwks = get_public_keys()
-        
-        # Decode and verify the token signature
-        # We temporarily disable audience verification to ensure baseline connectivity
+        rsa_key = get_public_key(token)
         payload = jwt.decode(
             token,
-            jwks,
-            algorithms=["RS256"],
-            options={"verify_aud": False} 
+            rsa_key,
+            algorithms=[ALGORITHM],
+            audience=AUDIENCE,
+            options={"verify_aud": False} # Adjust based on your strictness
         )
+        
+        # Priority 2 Fix: Robust Role Extraction
+        roles = payload.get("realm_access", {}).get("roles", [])
+        role_priority = ["admin", "manager", "teller", "customer"]
+        primary_role = "customer" # Default fallback
+        
+        for r in role_priority:
+            if r in roles:
+                primary_role = r
+                break
+                
+        # Attach the normalized role to the payload so downstream services don't have to guess
+        payload["normalized_role"] = primary_role
+        
         return payload
-    
     except JWTError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid or expired token: {str(e)}",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise HTTPException(status_code=401, detail=f"Invalid Keycloak token: {str(e)}")

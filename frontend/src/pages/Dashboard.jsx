@@ -97,15 +97,20 @@ export default function Dashboard() {
     executeTransfer(transferTo, transferAmount);
   };
 
-  const handleMfaSubmit = (e) => {
+  const handleMfaSubmit = async (e) => {
     e.preventDefault();
-    if (mfaCode.length === 6) {
-      document.cookie = "mfa_cleared=true; path=/; max-age=300";
+    try {
+      // 1. Send the code to the backend to be evaluated
+      await api.post('/security/verify-mfa', { code: mfaCode });
+      
+      // 2. If it succeeds, the backend automatically attaches the HttpOnly cookie to the browser.
+      // 3. Hide modal and retry the exact same transfer
       setShowMfaModal(false);
       setMfaCode('');
       executeTransfer(pendingTransfer.targetUser, pendingTransfer.amount);
-    } else {
-      alert("Please enter a valid 6-digit code.");
+      
+    } catch (err) {
+      alert("Verification failed. Invalid code.");
     }
   };
 

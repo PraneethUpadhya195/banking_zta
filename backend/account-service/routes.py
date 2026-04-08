@@ -12,6 +12,7 @@ from database import get_db
 from models import Account, User
 from masking import apply_mask
 from auth import get_current_user, CurrentUser
+from keycloak_auth import verify_token
 from opa_middleware import enforce_policy
 
 router = APIRouter(prefix="/account", tags=["Account"])
@@ -20,7 +21,7 @@ router = APIRouter(prefix="/account", tags=["Account"])
 @router.get("/me")
 async def get_my_account(
     request: Request,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
     await enforce_policy(
@@ -56,7 +57,7 @@ async def get_my_account(
 @router.get("/all")
 async def get_all_accounts(
     request: Request,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
     if current_user.role not in ("teller", "manager", "admin"):
@@ -94,7 +95,7 @@ async def get_all_accounts(
 async def get_account_by_username(
     username: str,
     request: Request,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
     if current_user.role not in ("teller", "manager", "admin"):

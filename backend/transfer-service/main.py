@@ -18,6 +18,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 from database import get_db, AsyncSessionLocal
 from models import User
 from routes import router
+from auth_routes import router as auth_router
 
 SECRET_KEY = os.getenv("JWT_SECRET")
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
@@ -66,3 +67,4 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
 
 # Inject the cleaned-up router
 app.include_router(router)
+app.include_router(auth_router)

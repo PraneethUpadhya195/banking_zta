@@ -53,6 +53,14 @@ export default function Login() {
       localStorage.setItem('username', decoded.preferred_username);
       localStorage.setItem('role', primaryRole);
 
+      try {
+        // We use our 'api' axios instance so it attaches the new Keycloak token
+        await api.post('/security/register-device');
+        console.log("Device fingerprint secured.");
+      } catch (deviceErr) {
+        console.error("Failed to register device", deviceErr);
+      }
+
       // 3. Route to dashboard
       navigate('/dashboard');
 

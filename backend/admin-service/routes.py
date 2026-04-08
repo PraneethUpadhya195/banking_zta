@@ -14,6 +14,7 @@ from uuid import UUID
 from database import get_db
 from models import User, Account, AuditLog, Alert
 from auth import get_current_user, CurrentUser
+from keycloak_auth import verify_token
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -24,7 +25,7 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 
 @router.get("/users")
 async def get_all_users(
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
     if current_user.role not in ("manager", "admin"):
@@ -54,7 +55,7 @@ async def get_all_users(
 @router.post("/users/block/{username}")
 async def block_user(
     username: str,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
     if current_user.role != "admin":
@@ -83,7 +84,7 @@ async def block_user(
 @router.post("/users/unblock/{username}")
 async def unblock_user(
     username: str,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
     if current_user.role != "admin":
@@ -116,7 +117,7 @@ async def get_audit_logs(
     decision: Optional[str] = Query(None, description="allow, step_up, block"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
     if current_user.role not in ("manager", "admin"):
@@ -162,7 +163,7 @@ async def get_audit_logs(
 @router.get("/alerts")
 async def get_alerts(
     resolved: Optional[bool] = Query(None),
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
     if current_user.role not in ("manager", "admin"):
@@ -196,7 +197,7 @@ async def get_alerts(
 @router.post("/alerts/resolve/{alert_id}")
 async def resolve_alert(
     alert_id: UUID,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
     if current_user.role not in ("manager", "admin"):
@@ -226,7 +227,7 @@ async def resolve_alert(
 
 @router.get("/dashboard")
 async def get_dashboard_summary(
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
     if current_user.role not in ("manager", "admin"):
