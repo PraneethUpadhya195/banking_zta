@@ -7,7 +7,7 @@ import uuid
 from database import get_db
 from models import User
 # Ensure you have a RegisteredDevice model if you haven't created it yet!
-# from models import RegisteredDevice 
+from models import RegisteredDevice 
 from keycloak_auth import verify_token
 
 router = APIRouter(prefix="/security", tags=["Security"])
@@ -19,33 +19,37 @@ async def register_device(
     token_payload: dict = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Called by the frontend upon first successful login. 
-    Generates a secure device fingerprint and stores it.
-    """
     username = token_payload.get("preferred_username")
-    client_ip = request.headers.get("X-Forwarded-For", request.client.host)
     
-    # Generate a unique cryptographically secure device ID
+    # Get the user's UUID from the database
+    result = await db.execute(select(User).where(User.username == username))
+    user = result.scalars().first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
     device_id = str(uuid.uuid4())
     
-    # TODO: Save to your registered_devices table in DB
-    # new_device = RegisteredDevice(username=username, device_id=device_id, ip=client_ip)
-    # db.add(new_device)
-    # await db.commit()
+    # ACTUALLY SAVE TO THE DATABASE
+    new_device = RegisteredDevice(
+        user_id=user.id, 
+        device_fingerprint=device_id, 
+        label="Browser Session"
+    )
+    db.add(new_device)
+    await db.commit()
 
-    # Drop an HttpOnly cookie that JS cannot touch
+    # Drop the HttpOnly cookie
     response.set_cookie(
         key="device_id",
         value=device_id,
-        httponly=True,  # Blocks document.cookie access
-        secure=False,   # Set to True in production with HTTPS/NGINX
+        httponly=True,
+        secure=False,
         samesite="lax",
-        max_age=60 * 60 * 24 * 365 # 1 year
+        max_age=60 * 60 * 24 * 365
     )
     
     return {"message": "Device registered securely", "device_id": device_id}
-
 
 @router.post("/verify-mfa")
 async def verify_mfa(

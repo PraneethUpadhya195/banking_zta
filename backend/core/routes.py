@@ -53,8 +53,9 @@ async def make_transfer(
 
     # 2. Extract Context (IP, Device, MFA)
     client_ip = request.headers.get("X-Forwarded-For", request.client.host)
-    device_id = request.cookies.get("device_id")
-    is_device_registered = True if device_id else False
+    
+    # Grab the actual string value of the cookie (e.g., "e026da19-8046-...")
+    device_id_cookie = request.cookies.get("device_id") 
     has_mfa = request.cookies.get("mfa_cleared") == "true"
 
     # 3. OPA Zero Trust Check
@@ -65,7 +66,7 @@ async def make_transfer(
         method=request.method,
         ip=client_ip,
         db=db,
-        device_id=is_device_registered,
+        device_id=device_id_cookie,  # <--- PASS THE ACTUAL STRING HERE
         amount=amount,
         mfa_verified=has_mfa
     )

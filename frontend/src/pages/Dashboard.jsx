@@ -3,6 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 
 export default function Dashboard() {
+
+  // Manager State
+  const [newCustomerName, setNewCustomerName] = useState('');
+  const [newCustomerBalance, setNewCustomerBalance] = useState('');
+  const [managerMessage, setManagerMessage] = useState('');
+  
   // Navigation State
   const [activeTab, setActiveTab] = useState('vault');
 
@@ -111,6 +117,19 @@ export default function Dashboard() {
       
     } catch (err) {
       alert("Verification failed. Invalid code.");
+    }
+  };
+
+  const handleCreateCustomer = async (e) => {
+    e.preventDefault();
+    setManagerMessage("Creating customer in Keycloak and Database...");
+    try {
+      const response = await api.post(`/admin/create-customer?new_username=${newCustomerName}&starting_balance=${newCustomerBalance}`);
+      setManagerMessage(`✅ Success: ${response.data.message}`);
+      setNewCustomerName('');
+      setNewCustomerBalance('');
+    } catch (err) {
+      setManagerMessage(`❌ Error: ${err.response?.data?.detail || err.message}`);
     }
   };
 
@@ -229,6 +248,45 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* MANAGER TAB: CREATE CUSTOMER */}
+            {(role === 'manager' || role === 'admin') && (
+              <div className="mt-8 border-t pt-8">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Manager Control Panel</h3>
+                <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
+                  <h4 className="font-bold text-gray-700 mb-2">Onboard New Customer</h4>
+                  {managerMessage && (
+                    <div className={`p-3 rounded mb-4 text-sm ${managerMessage.includes('❌') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                      {managerMessage}
+                    </div>
+                  )}
+                  <form onSubmit={handleCreateCustomer} className="flex space-x-4 items-end">
+                    <div className="flex-1">
+                      <label className="block text-xs text-gray-500 mb-1">Username</label>
+                      <input 
+                        type="text" required 
+                        className="w-full px-3 py-2 border rounded"
+                        value={newCustomerName} onChange={(e) => setNewCustomerName(e.target.value)}
+                        placeholder="e.g. customer3"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs text-gray-500 mb-1">Starting Balance (₹)</label>
+                      <input 
+                        type="number" required min="0"
+                        className="w-full px-3 py-2 border rounded"
+                        value={newCustomerBalance} onChange={(e) => setNewCustomerBalance(e.target.value)}
+                        placeholder="5000"
+                      />
+                    </div>
+                    <button type="submit" className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 font-medium h-[42px]">
+                      Create Account
+                    </button>
+                  </form>
+                  <p className="text-xs text-gray-400 mt-3">Note: New customers default to the password <b>password123</b>.</p>
+                </div>
+              </div>
+            )}
 
       {/* Transfer & MFA Modals (Kept exactly the same as Phase 3) */}
       {showTransferModal && (

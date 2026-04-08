@@ -165,3 +165,16 @@ reasons := [reason |
     some signal in triggered_signals
     reason := concat(": ", [signal.name, format_int(signal.score, 10)])
 ]
+
+# Allow Managers to access the /admin/ routes
+default allow = false
+
+allow {
+    input.role == "manager"
+    startswith(input.path, "/admin/")
+}
+
+allow {
+    input.role == "admin"
+    startswith(input.path, "/admin/")
+}
