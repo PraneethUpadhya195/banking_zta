@@ -4,6 +4,9 @@ import api from '../api/axios';
 
 export default function Dashboard() {
 
+  const [qrCode, setQrCode] = useState(null);
+  const [setupMessage, setSetupMessage] = useState('');
+
   // Manager State
   const [newCustomerName, setNewCustomerName] = useState('');
   const [newCustomerBalance, setNewCustomerBalance] = useState('');
@@ -133,6 +136,16 @@ export default function Dashboard() {
     }
   };
 
+  const handleSetupMfa = async () => {
+    try {
+      const response = await api.post('/security/setup-mfa');
+      setQrCode(response.data.qr_code);
+      setSetupMessage("Scan this QR code with Google Authenticator or Authy.");
+    } catch (err) {
+      setSetupMessage("Error setting up MFA.");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 p-8">
       <div className="max-w-6xl mx-auto">
@@ -248,6 +261,32 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* SECURITY SETTINGS PANEL */}
+            <div className="mt-8 border-t pt-8">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Security Settings</h3>
+              <div className="bg-white p-6 rounded-lg border border-gray-200">
+                <p className="text-sm text-gray-600 mb-4">Protect your account by enabling Two-Factor Authentication.</p>
+                <button 
+                  onClick={handleSetupMfa}
+                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 font-medium"
+                >
+                  Generate MFA QR Code
+                </button>
+
+                {qrCode && (
+                  <div className="mt-6 p-4 border rounded bg-gray-50 flex flex-col items-center">
+                    <p className="font-bold text-gray-800 mb-2">{setupMessage}</p>
+                    {/* React can render Base64 strings directly as images! */}
+                    <img src={qrCode} alt="MFA QR Code" className="w-48 h-48 border bg-white p-2 shadow-sm" />
+                    <p className="text-xs text-gray-500 mt-4 text-center">
+                      Once scanned, your phone will generate a new 6-digit code every 30 seconds. <br/>
+                      You will need this code to approve high-risk transfers.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
 
       {/* MANAGER TAB: CREATE CUSTOMER */}
             {(role === 'manager' || role === 'admin') && (

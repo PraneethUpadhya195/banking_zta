@@ -17,6 +17,7 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     role = Column(String(20), nullable=False)  # customer, teller, manager, admin
     is_blocked = Column(Boolean, default=False)
+    totp_secret = Column(String(32), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     account = relationship("Account", back_populates="user", uselist=False)
