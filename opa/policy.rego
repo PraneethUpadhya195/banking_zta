@@ -169,12 +169,12 @@ reasons := [reason |
 # Allow Managers to access the /admin/ routes
 default allow = false
 
-allow {
+allow if {
     input.role == "manager"
     startswith(input.path, "/admin/")
 }
 
-allow {
+allow if {
     input.role == "admin"
     startswith(input.path, "/admin/")
 }
