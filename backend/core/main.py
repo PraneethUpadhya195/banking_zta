@@ -15,6 +15,7 @@ from account_routes import router as account_router
 
 app = FastAPI(title="Zero Trust Core Banking")
 
+'''
 # CORS for React
 app.add_middleware(
     CORSMiddleware,
@@ -22,7 +23,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-)
+)'''
 
 @app.middleware("http")
 async def audit_middleware(request: Request, call_next):
