@@ -47,3 +47,11 @@ Thumbs.db
 postgres_data/
 keycloak_data/
 pgdata/
+
+# Ignore all security certificates and keys
+certs/
+*.crt
+*.key
+*.csr
+*.p12
+*.pem
