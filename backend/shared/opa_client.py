@@ -31,6 +31,7 @@ async def evaluate_policy(
             "ip": ip,
             "device_registered": device_registered,
             "is_blocked": is_blocked,
+            #"hour": 3,
             "hour": datetime.utcnow().hour,
             "amount": amount,
             "device_id": device_id or "",

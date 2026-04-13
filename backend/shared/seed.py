@@ -4,29 +4,30 @@ import os
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'shared')))
 from database import AsyncSessionLocal
-from models import User, Account
+from models import User
 
-async def seed_customer2():
+async def seed_staff():
     async with AsyncSessionLocal() as db:
-        # 1. Create the User
-        new_user = User(
-            username="customer2",
+        # 1. Create the Admin
+        admin_user = User(
+            username="admin",
             hashed_password="keycloak_managed",
-            role="customer",
+            role="admin",
             is_blocked=False
         )
-        db.add(new_user)
-        await db.flush() # Flushes to DB to get the new_user.id generated
+        db.add(admin_user)
 
-        # 2. Create the Account
-        new_account = Account(
-            user_id=new_user.id,
-            account_number="ACC9876543210",
-            balance=5000.00
+        # 2. Create the Manager
+        manager_user = User(
+            username="manager",
+            hashed_password="keycloak_managed",
+            role="manager",
+            is_blocked=False
         )
-        db.add(new_account)
+        db.add(manager_user)
+
         await db.commit()
-        print("Successfully created customer2 and added ₹5,000 to their account!")
+        print("Successfully created Admin and Manager in the database!")
 
 if __name__ == "__main__":
-    asyncio.run(seed_customer2())
+    asyncio.run(seed_staff())

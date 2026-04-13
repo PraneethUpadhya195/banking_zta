@@ -12,6 +12,53 @@ result := {
     "reasons": reasons
 }
 
+# ─────────────────────────────────────────
+# Main decision — Absolute Overrides First
+# ─────────────────────────────────────────
+
+result := {
+    "decision": decision,
+    "score": risk_score,
+    "reasons": reasons
+}
+
+# 1. THE HARD BLOCK: Over ₹200,000 is instantly blocked, no matter the score.
+decision := "block" if {
+    input.amount > 200000
+}
+
+# 2. THE MFA TRAP: ₹50,000 to ₹200,000 forces Step-Up, unless already passed.
+decision := "step_up" if {
+    input.amount > 50000
+    input.amount <= 200000
+    not mfa_passed
+}
+
+# 3. DYNAMIC SCORING: For amounts under ₹50,000, rely on the risk score.
+decision := "block" if {
+    input.amount <= 50000
+    risk_score >= data.thresholds.step_up
+}
+
+decision := "step_up" if {
+    input.amount <= 50000
+    risk_score >= data.thresholds.allow
+    risk_score < data.thresholds.step_up
+    not mfa_passed
+}
+
+decision := "allow" if {
+    input.amount <= 50000
+    risk_score < data.thresholds.allow
+}
+
+# (If they passed MFA on a medium tier, allow them through)
+decision := "allow" if {
+    input.amount > 50000
+    input.amount <= 200000
+    mfa_passed
+}
+
 decision := "block"   if risk_score >= data.thresholds.step_up
 decision := "step_up" if {
     risk_score >= data.thresholds.allow
