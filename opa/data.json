@@ -9,66 +9,24 @@
     "5.6.7.8"
   ],
   "trusted_hours": {
-    "start": 8,
-    "end": 20
+    "start": 6,
+    "end": 23
   },
   "score_weights": {
-    "unregistered_device": 35,
-    "untrusted_ip": 25,
-    "blocked_ip": 100,
-    "off_hours": 15,
-    "amount_medium": 20,
-    "amount_high": 40,
+    "unregistered_device": 7,     
+    "untrusted_ip": 11,           
+    "impossible_travel": 8,       
+    "off_hours": 30,              
+    "blocked_ip": 100,            
     "user_blocked": 100,
-    "impossible_travel": 100,
-    "mfa_passed": -50
+    "mfa_passed": -65
   },
   "thresholds": {
-    "allow": 40,
-    "step_up": 70
+    "allow": 35,
+    "step_up": 60,
+    "block": 100
   },
   "role_permissions": {
-    "customer": [
-      "GET:/account/me",
-      "POST:/transfer/",
-      "GET:/transfer/history",
-      "GET:/transactions/"
-    ],
-    "teller": [
-      "GET:/account/me",
-      "GET:/account/all",
-      "GET:/account/{username}",
-      "POST:/transfer/",
-      "GET:/transfer/history",
-      "GET:/transactions/"
-    ],
-    "manager": [
-      "GET:/account/me",
-      "GET:/account/all",
-      "GET:/account/{username}",
-      "GET:/transfer/history",
-      "GET:/transactions/",
-      "GET:/transactions/flagged/all",
-      "GET:/admin/users",
-      "GET:/admin/audit-logs",
-      "GET:/admin/alerts",
-      "GET:/admin/dashboard",
-      "POST:/admin/alerts/resolve/{alert_id}"
-    ],
-    "admin": [
-      "GET:/account/me",
-      "GET:/account/all",
-      "GET:/account/{username}",
-      "GET:/transfer/history",
-      "GET:/transactions/",
-      "GET:/transactions/flagged/all",
-      "GET:/admin/users",
-      "GET:/admin/audit-logs",
-      "GET:/admin/alerts",
-      "GET:/admin/dashboard",
-      "POST:/admin/users/block/{username}",
-      "POST:/admin/users/unblock/{username}",
-      "POST:/admin/alerts/resolve/{alert_id}"
-    ]
+    "customer": ["GET:/account/me", "POST:/transfer/"]
   }
 }

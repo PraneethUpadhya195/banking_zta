@@ -170,7 +170,8 @@ python backend/init_db.py
 ### 3 — Open Policy Agent (OPA)
 
 ```bash
-opa run --server ./opa/policy.rego
+cd opa
+opa run --server ./policy.rego ./data.json
 ```
 
 ---

@@ -3,74 +3,66 @@ package banking.authz
 import rego.v1
 
 # ─────────────────────────────────────────
-# Main decision — this is what FastAPI reads
+# 1. Main Decision Output
 # ─────────────────────────────────────────
-
 result := {
     "decision": decision,
     "score": risk_score,
     "reasons": reasons
 }
 
+default decision := "deny"
+
 # ─────────────────────────────────────────
-# Main decision — Absolute Overrides First
+# 2. Decision Logic (Hierarchical)
 # ─────────────────────────────────────────
 
-result := {
-    "decision": decision,
-    "score": risk_score,
-    "reasons": reasons
+# A2. RBAC Hard Block (Privilege Escalation)
+decision := "deny" if {
+    is_unauthorized
 }
 
-# 1. THE HARD BLOCK: Over ₹200,000 is instantly blocked, no matter the score.
+# A. The Hard Blocks (Overrides Everything)
 decision := "block" if {
     input.amount > 200000
 }
 
-# 2. THE MFA TRAP: ₹50,000 to ₹200,000 forces Step-Up, unless already passed.
+decision := "block" if {
+    input.amount <= 200000
+    risk_score >= data.thresholds.block
+}
+
+# B. The MFA Traps (Step-Up)
 decision := "step_up" if {
     input.amount > 50000
     input.amount <= 200000
     not mfa_passed
-}
-
-# 3. DYNAMIC SCORING: For amounts under ₹50,000, rely on the risk score.
-decision := "block" if {
-    input.amount <= 50000
-    risk_score >= data.thresholds.step_up
+    risk_score < data.thresholds.block
 }
 
 decision := "step_up" if {
     input.amount <= 50000
     risk_score >= data.thresholds.allow
-    risk_score < data.thresholds.step_up
+    risk_score < data.thresholds.block
     not mfa_passed
 }
 
+# C. The Allows
 decision := "allow" if {
     input.amount <= 50000
     risk_score < data.thresholds.allow
 }
 
-# (If they passed MFA on a medium tier, allow them through)
+# If they passed MFA on a step-up tier, allow them through
 decision := "allow" if {
-    input.amount > 50000
     input.amount <= 200000
     mfa_passed
+    risk_score < data.thresholds.block
 }
 
-decision := "block"   if risk_score >= data.thresholds.step_up
-decision := "step_up" if {
-    risk_score >= data.thresholds.allow
-    risk_score < data.thresholds.step_up
-}
-decision := "allow"   if risk_score < data.thresholds.allow
-
-
 # ─────────────────────────────────────────
-# Risk Score — sum of all triggered signals
+# 3. Risk Score Calculation
 # ─────────────────────────────────────────
-
 risk_score := sum(triggered_scores)
 
 triggered_scores := [score |
@@ -78,16 +70,9 @@ triggered_scores := [score |
     score := signal.score
 ]
 
-
-# ─────────────────────────────────────────
-# Triggered Signals — each rule adds to score
-# ─────────────────────────────────────────
-
-triggered_signals := signals if {
-    signals := {signal |
-        some signal in all_signals
-        signal.triggered == true
-    }
+triggered_signals := {signal |
+    some signal in all_signals
+    signal.triggered == true
 }
 
 all_signals := [
@@ -112,16 +97,6 @@ all_signals := [
         "score": data.score_weights.off_hours
     },
     {
-        "name": "amount_medium",
-        "triggered": amount_medium,
-        "score": data.score_weights.amount_medium
-    },
-    {
-        "name": "amount_high",
-        "triggered": amount_high,
-        "score": data.score_weights.amount_high
-    },
-    {
         "name": "user_blocked",
         "triggered": user_blocked,
         "score": data.score_weights.user_blocked
@@ -138,17 +113,19 @@ all_signals := [
     }
 ]
 
-
 # ─────────────────────────────────────────
-# Helper Rules
+# 4. Helper Rules
 # ─────────────────────────────────────────
-
 default untrusted_ip := false
 default blocked_ip := false
 default ip_in_trusted_range := false
 default off_hours := false
-default amount_medium := false
-default amount_high := false
+
+default is_unauthorized := false
+is_unauthorized if {
+    startswith(input.path, "/admin/")
+    input.role == "customer"
+}
 
 default impossible_travel := false
 impossible_travel if {
@@ -195,25 +172,14 @@ off_hours if {
     input.hour >= data.trusted_hours.end
 }
 
-amount_medium if {
-    input.amount > 50000
-    input.amount <= 100000
-}
-
-amount_high if {
-    input.amount > 100000
-}
-
 # ─────────────────────────────────────────
-# Reasons — human readable list for audit log
+# 5. Reasons & RBAC
 # ─────────────────────────────────────────
-
 reasons := [reason |
     some signal in triggered_signals
     reason := concat(": ", [signal.name, format_int(signal.score, 10)])
 ]
 
-# Allow Managers to access the /admin/ routes
 default allow = false
 
 allow if {
