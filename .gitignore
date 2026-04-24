@@ -55,3 +55,8 @@ certs/
 *.csr
 *.p12
 *.pem
+
+score_calc/PaySim/
+score_calc/ieee-fraud-detection/
+score_calc/*.png
+score_calc/*.csv
